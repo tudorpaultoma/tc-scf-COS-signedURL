@@ -165,6 +165,7 @@
     const files = data.files || [];
     let ok = 0, fail = 0;
 
+    const succeeded = [];
     await Promise.all(files.map(async (entry, i) => {
       const statusEl = document.getElementById('status-' + i);
       statusEl.textContent = 'uploading…';
@@ -178,6 +179,7 @@
         statusEl.textContent = 'done ✓';
         statusEl.className = 'status done';
         ok++;
+        succeeded.push(i);
       } catch (e) {
         statusEl.textContent = 'failed ✗';
         statusEl.className = 'status error';
@@ -185,8 +187,15 @@
       }
     }));
 
+    // Remove successfully uploaded files from the list
+    selectedFiles = selectedFiles.filter((_, i) => !succeeded.includes(i));
+    setTimeout(() => {
+      renderList();
+      uploadBtn.disabled = selectedFiles.length === 0;
+    }, 1000);
+
     msg(`Upload complete: ${ok} succeeded, ${fail} failed.`, fail ? 'error' : 'done');
-    uploadBtn.disabled = false;
+    uploadBtn.disabled = selectedFiles.length === 0;
   });
 
   function msg(text, type) {

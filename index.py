@@ -111,7 +111,7 @@ def main_handler(event, context):
     results = []
     for fname in filenames:
         safe_name = fname.replace("\\", "/").split("/")[-1]  # basename only
-        object_key = f"{folder}/{uuid.uuid4().hex[:8]}_{safe_name}"
+        object_key = f"{folder}/{safe_name}"
         url = _append_token(
             client.get_presigned_url(Method="PUT", Bucket=bucket, Key=object_key, Expired=ttl),
             token,
