@@ -45,20 +45,44 @@ chmod +x build_scf.sh
 
 **Handler:** `index.main_handler`
 
-## Response Example
+## Web Frontend
+
+`index.html` is a self-contained upload page — host it at the COS bucket root for public access.
+
+**Setup:**
+1. Upload `index.html` to the bucket root
+2. Enable static website hosting or set public-read on the object
+3. On the `index.html` object, add custom header `Content-Disposition` → `inline` (required if the bucket has force-download enabled at bucket level)
+4. Create an **API Gateway** trigger for the SCF function
+5. Open the page, enter the API Gateway URL and target folder, pick files, hit Upload
+
+The page sends a `POST` with `{ "filenames": [...], "folder": "..." }` to the SCF, receives presigned URLs, then PUTs each file directly to COS.
+
+## API Usage
+
+**POST** to API Gateway with JSON body:
+
+```json
+{ "filenames": ["report.pdf", "photo.jpg"], "folder": "customer-uploads" }
+```
+
+Response:
 
 ```json
 {
-  "upload_url": "https://my-bucket-1250000000.cos.ap-singapore.myqcloud.com/uploads/a1b2c3...?sign=...",
   "method": "PUT",
   "bucket": "my-bucket-1250000000",
-  "key": "uploads/a1b2c3d4e5f6...",
   "ttl_seconds": 3600,
-  "usage": "curl -X PUT \"<url>\" --data-binary @<local-file> -H \"Content-Type: application/octet-stream\""
+  "files": [
+    { "filename": "report.pdf", "upload_url": "https://...", "key": "customer-uploads/a1b2c3d4_report.pdf" },
+    { "filename": "photo.jpg", "upload_url": "https://...", "key": "customer-uploads/e5f6a7b8_photo.jpg" }
+  ]
 }
 ```
 
-## Client Upload
+**Direct invocation** (no filenames) returns a single URL with a random key.
+
+## Client Upload (curl)
 
 ```bash
 curl -X PUT "<upload_url>" --data-binary @myfile.pdf -H "Content-Type: application/pdf"

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Upload</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f0f2f5; color: #1a1a2e; display: flex; justify-content: center;
+    align-items: center; min-height: 100vh; padding: 1rem;
+  }
+  .card {
+    background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    padding: 2.5rem; width: 100%; max-width: 540px;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .subtitle { color: #666; font-size: .875rem; margin-bottom: 1.5rem; }
+  label { display: block; font-weight: 600; font-size: .875rem; margin-bottom: .35rem; }
+  input[type="text"] {
+    width: 100%; padding: .6rem .75rem; border: 1px solid #d0d5dd; border-radius: 8px;
+    font-size: .9rem; margin-bottom: 1rem; transition: border .2s;
+  }
+  input[type="text"]:focus { outline: none; border-color: #4a6cf7; }
+
+  .drop-zone {
+    border: 2px dashed #d0d5dd; border-radius: 10px; padding: 2rem 1rem;
+    text-align: center; color: #888; cursor: pointer; transition: all .2s;
+    margin-bottom: 1rem; position: relative;
+  }
+  .drop-zone.over { border-color: #4a6cf7; background: #f0f4ff; color: #4a6cf7; }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-zone p { pointer-events: none; }
+  .drop-zone .icon { font-size: 2rem; margin-bottom: .5rem; }
+
+  #file-list { list-style: none; margin-bottom: 1rem; max-height: 180px; overflow-y: auto; }
+  #file-list li {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .45rem .6rem; border-radius: 6px; font-size: .85rem;
+    background: #f9fafb; margin-bottom: .35rem;
+  }
+  #file-list li .size { color: #888; font-size: .8rem; }
+  #file-list li .status { font-size: .8rem; font-weight: 600; min-width: 70px; text-align: right; }
+  .status.pending { color: #888; }
+  .status.uploading { color: #e67e22; }
+  .status.done { color: #27ae60; }
+  .status.error { color: #e74c3c; }
+
+  .btn {
+    width: 100%; padding: .75rem; border: none; border-radius: 8px; font-size: 1rem;
+    font-weight: 600; cursor: pointer; transition: background .2s;
+  }
+  .btn-primary { background: #4a6cf7; color: #fff; }
+  .btn-primary:hover { background: #3a5ae0; }
+  .btn-primary:disabled { background: #b0bfff; cursor: not-allowed; }
+
+  #message { margin-top: 1rem; font-size: .85rem; text-align: center; min-height: 1.25rem; }
+
+  .config-section {
+    background: #f9fafb; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;
+    border: 1px solid #eaecf0;
+  }
+  .config-section label:last-of-type + input { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Secure File Upload</h1>
+  <p class="subtitle">Select files and upload them to the designated folder.</p>
+
+  <div class="config-section">
+    <label for="api-url">API Gateway URL</label>
+    <input type="text" id="api-url" placeholder="https://service-xxx.apigw.tencentcs.com/release/upload">
+
+    <label for="folder-name">Folder Name</label>
+    <input type="text" id="folder-name" value="" placeholder="uploads">
+  </div>
+
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" multiple>
+    <div class="icon">&#128206;</div>
+    <p>Drop files here or click to browse</p>
+  </div>
+
+  <ul id="file-list"></ul>
+
+  <button class="btn btn-primary" id="upload-btn" disabled>Upload</button>
+  <div id="message"></div>
+</div>
+
+<script>
+(function () {
+  const dropZone  = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const fileList  = document.getElementById('file-list');
+  const uploadBtn = document.getElementById('upload-btn');
+  const msgEl     = document.getElementById('message');
+  let selectedFiles = [];
+
+  /* --- Drag & drop ---------------------------------------------------- */
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('over');
+    addFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+  function addFiles(files) {
+    for (const f of files) selectedFiles.push(f);
+    renderList();
+    uploadBtn.disabled = selectedFiles.length === 0;
+  }
+
+  function formatSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1048576).toFixed(1) + ' MB';
+  }
+
+  function renderList() {
+    fileList.innerHTML = '';
+    selectedFiles.forEach((f, i) => {
+      const li = document.createElement('li');
+      li.innerHTML =
+        `<span>${f.name} <span class="size">(${formatSize(f.size)})</span></span>` +
+        `<span class="status pending" id="status-${i}">pending</span>`;
+      fileList.appendChild(li);
+    });
+  }
+
+  /* --- Upload --------------------------------------------------------- */
+  uploadBtn.addEventListener('click', async () => {
+    const apiUrl = document.getElementById('api-url').value.trim();
+    if (!apiUrl) { msg('Please enter the API Gateway URL.', 'error'); return; }
+    if (selectedFiles.length === 0) return;
+
+    uploadBtn.disabled = true;
+    msg('Requesting presigned URLs…', '');
+
+    const filenames = selectedFiles.map(f => f.name);
+
+    /* 1. Get presigned URLs from SCF via API Gateway */
+    let data;
+    try {
+      const folderName = document.getElementById('folder-name').value.trim();
+      const payload = { filenames: filenames };
+      if (folderName) payload.folder = folderName;
+
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+    } catch (e) {
+      msg('Failed to get upload URLs: ' + e.message, 'error');
+      uploadBtn.disabled = false;
+      return;
+    }
+
+    /* 2. PUT each file to its presigned URL */
+    const files = data.files || [];
+    let ok = 0, fail = 0;
+
+    await Promise.all(files.map(async (entry, i) => {
+      const statusEl = document.getElementById('status-' + i);
+      statusEl.textContent = 'uploading…';
+      statusEl.className = 'status uploading';
+      try {
+        const putRes = await fetch(entry.upload_url, {
+          method: 'PUT',
+          body: selectedFiles[i],
+        });
+        if (!putRes.ok) throw new Error('HTTP ' + putRes.status);
+        statusEl.textContent = 'done ✓';
+        statusEl.className = 'status done';
+        ok++;
+      } catch (e) {
+        statusEl.textContent = 'failed ✗';
+        statusEl.className = 'status error';
+        fail++;
+      }
+    }));
+
+    msg(`Upload complete: ${ok} succeeded, ${fail} failed.`, fail ? 'error' : 'done');
+    uploadBtn.disabled = false;
+  });
+
+  function msg(text, type) {
+    msgEl.textContent = text;
+    msgEl.style.color = type === 'error' ? '#e74c3c' : type === 'done' ? '#27ae60' : '#666';
+  }
+})();
+</script>
+</body>
+</html>
