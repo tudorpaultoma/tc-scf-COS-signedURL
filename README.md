@@ -20,6 +20,21 @@ Tencent Cloud SCF function that generates a **time-bounded pre-signed COS URL** 
 
 > SCF injects `TENCENTCLOUD_SECRETID`, `TENCENTCLOUD_SECRETKEY`, and `TENCENTCLOUD_SESSIONTOKEN` automatically when an execution role is bound.
 
+## IAM Policy & Execution Role
+
+1. **Create a CAM custom policy** using `cos-policy.json` (grants `PutObject`, `GetObject`, `HeadObject`, `GetBucket` on all COS resources).
+2. **Create a CAM role** with trust entity `scf.tencentcloudapi.com`.
+3. **Attach the policy** to the role.
+4. **Bind the role** to the SCF function as its execution role.
+
+To scope the policy to a specific bucket, replace the `resource` value:
+
+```json
+"resource": [
+  "qcs::cos:<region>::<bucket-name>/*"
+]
+```
+
 ## Build & Deploy
 
 ```bash
