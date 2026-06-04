@@ -48,7 +48,7 @@ COS Bucket  /uploads/<filename>
 
 ---
 
-## 1. IAM — Create Execution Role
+## 1. CAM — Create Execution Role
 
 The SCF function uses a **CAM role** to sign presigned URLs. No hardcoded credentials needed.
 
